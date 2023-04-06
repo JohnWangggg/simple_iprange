@@ -1,6 +1,6 @@
 # simple_iprange
 
-A simple Go library for parsing and handling IPv4&IPv6 ranges. 
+Simple Go library for parsing and manipulating IPv4 and IPv6 ranges that support the nmap scanner.
 
 ## Usage 
 
