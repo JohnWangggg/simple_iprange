@@ -21,20 +21,61 @@ func (ir *IPRange) String() string {
 
 func Parse(ipRange string) (*IPRange, error) {
 	if strings.Contains(ipRange, "-") {
-		ips := strings.Split(ipRange, "-")
-		if len(ips) == 2 {
-			firstIP := net.ParseIP(ips[0])
-			secondIPStr := strings.TrimSpace(ips[1])
+		octets := strings.Split(ipRange, ".")
+		if len(octets) == 4 {
+			firstIPStr, lastIPStr := "", ""
+			valid := true
 
-			// Check if the second part is just a number
-			if lastOctet, err := strconv.Atoi(secondIPStr); err == nil {
-				// Complete the IP address
-				secondIPStr = formatCompleteIP(firstIP.String(), lastOctet)
+			for i, octet := range octets {
+				if strings.Contains(octet, "-") {
+					limits := strings.Split(octet, "-")
+					if len(limits) == 2 {
+						lower, err := strconv.Atoi(limits[0])
+						if err != nil || lower < 0 || lower > 255 {
+							valid = false
+							break
+						}
+
+						upper, err := strconv.Atoi(limits[1])
+						if err != nil || upper < 0 || upper > 255 || upper < lower {
+							valid = false
+							break
+						}
+
+						if i == 0 {
+							firstIPStr += fmt.Sprintf("%d.", lower)
+							lastIPStr += fmt.Sprintf("%d.", upper)
+						} else {
+							firstIPStr += fmt.Sprintf("%d.", lower)
+							lastIPStr += fmt.Sprintf("%d.", upper)
+						}
+					} else {
+						valid = false
+						break
+					}
+				} else {
+					num, err := strconv.Atoi(octet)
+					if err != nil || num < 0 || num > 255 {
+						valid = false
+						break
+					}
+					if i == 0 {
+						firstIPStr += fmt.Sprintf("%d.", num)
+						lastIPStr += fmt.Sprintf("%d.", num)
+					} else {
+						firstIPStr += fmt.Sprintf("%d.", num)
+						lastIPStr += fmt.Sprintf("%d.", num)
+					}
+				}
 			}
-			secondIP := net.ParseIP(secondIPStr)
 
-			if firstIP != nil && secondIP != nil {
-				return &IPRange{FirstIP: firstIP, LastIP: secondIP}, nil
+			if valid {
+				firstIP := net.ParseIP(firstIPStr[:len(firstIPStr)-1])
+				lastIP := net.ParseIP(lastIPStr[:len(lastIPStr)-1])
+
+				if firstIP != nil && lastIP != nil {
+					return &IPRange{FirstIP: firstIP, LastIP: lastIP}, nil
+				}
 			}
 		}
 	} else if strings.Contains(ipRange, "/") {
