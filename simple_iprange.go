@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -23,10 +24,17 @@ func Parse(ipRange string) (*IPRange, error) {
 		ips := strings.Split(ipRange, "-")
 		if len(ips) == 2 {
 			firstIP := net.ParseIP(ips[0])
-			lastIP := net.ParseIP(ips[1])
+			secondIPStr := strings.TrimSpace(ips[1])
 
-			if firstIP != nil && lastIP != nil {
-				return &IPRange{FirstIP: firstIP, LastIP: lastIP}, nil
+			// Check if the second part is just a number
+			if lastOctet, err := strconv.Atoi(secondIPStr); err == nil {
+				// Complete the IP address
+				secondIPStr = formatCompleteIP(firstIP.String(), lastOctet)
+			}
+			secondIP := net.ParseIP(secondIPStr)
+
+			if firstIP != nil && secondIP != nil {
+				return &IPRange{FirstIP: firstIP, LastIP: secondIP}, nil
 			}
 		}
 	} else if strings.Contains(ipRange, "/") {
@@ -55,6 +63,14 @@ func Parse(ipRange string) (*IPRange, error) {
 	}
 	return nil, errors.New("Invalid IP range")
 }
+
+// formatCompleteIP takes a given IP address and the last octet as an integer and returns a complete IP address
+func formatCompleteIP(ip string, lastOctet int) string {
+	octets := strings.Split(ip, ".")
+	octets[len(octets)-1] = strconv.Itoa(lastOctet)
+	return strings.Join(octets, ".")
+}
+
 func ParseList(ipRanges string) (IPRangeList, error) {
 	ipRangeList := []*IPRange{}
 	ipRanges = strings.ReplaceAll(ipRanges, "\n", ",")
