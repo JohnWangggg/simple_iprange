@@ -21,68 +21,37 @@ func (ir *IPRange) String() string {
 
 func Parse(ipRange string) (*IPRange, error) {
 	if strings.Contains(ipRange, "-") {
-		octets := strings.Split(ipRange, ".")
-		if len(octets) == 4 {
-			firstIPStr, lastIPStr := "", ""
-			valid := true
+		ips := strings.Split(ipRange, "-")
+		if len(ips) == 2 {
+			octets1 := strings.Split(ips[0], ".")
+			octets2 := strings.Split(ips[1], ".")
 
-			for i, octet := range octets {
-				if strings.Contains(octet, "-") {
-					limits := strings.Split(octet, "-")
-					if len(limits) == 2 {
-						lower, err := strconv.Atoi(limits[0])
-						if err != nil || lower < 0 || lower > 255 {
-							valid = false
-							break
-						}
+			if len(octets1) == 4 && len(octets2) == 4 {
+				firstIPStr, lastIPStr := "", ""
+				valid := true
 
-						upper, err := strconv.Atoi(limits[1])
-						if err != nil || upper < 0 || upper > 255 || upper < lower {
-							valid = false
-							break
-						}
+				for i := 0; i < 4; i++ {
+					lower1, err1 := strconv.Atoi(octets1[i])
+					lower2, err2 := strconv.Atoi(octets2[i])
 
-						if i == 0 {
-							firstIPStr += fmt.Sprintf("%d.", lower)
-							lastIPStr += fmt.Sprintf("%d.", upper)
-						} else {
-							firstIPStr += fmt.Sprintf("%d.", lower)
-							lastIPStr += fmt.Sprintf("%d.", upper)
-						}
-					} else {
+					if err1 != nil || err2 != nil || lower1 < 0 || lower1 > 255 || lower2 < 0 || lower2 > 255 || lower1 > lower2 {
 						valid = false
 						break
 					}
-				} else {
-					num, err := strconv.Atoi(octet)
-					if err != nil || num < 0 || num > 255 {
-						valid = false
-						break
-					}
-					if i == 0 {
-						firstIPStr += fmt.Sprintf("%d.", num)
-						lastIPStr += fmt.Sprintf("%d.", num)
-					} else {
-						firstIPStr += fmt.Sprintf("%d.", num)
-						lastIPStr += fmt.Sprintf("%d.", num)
+
+					firstIPStr += fmt.Sprintf("%d.", lower1)
+					lastIPStr += fmt.Sprintf("%d.", lower2)
+				}
+
+				if valid {
+					firstIP := net.ParseIP(firstIPStr[:len(firstIPStr)-1])
+					lastIP := net.ParseIP(lastIPStr[:len(lastIPStr)-1])
+
+					if firstIP != nil && lastIP != nil {
+						return &IPRange{FirstIP: firstIP, LastIP: lastIP}, nil
 					}
 				}
 			}
-
-			if valid {
-				firstIP := net.ParseIP(firstIPStr[:len(firstIPStr)-1])
-				lastIP := net.ParseIP(lastIPStr[:len(lastIPStr)-1])
-
-				if firstIP != nil && lastIP != nil {
-					return &IPRange{FirstIP: firstIP, LastIP: lastIP}, nil
-				}
-			}
-		}
-	} else if strings.Contains(ipRange, "/") {
-		_, ipNet, err := net.ParseCIDR(ipRange)
-		if err == nil {
-			firstIP, lastIP := networkEndpoints(ipNet)
-			return &IPRange{FirstIP: firstIP, LastIP: lastIP}, nil
 		}
 	} else if strings.Contains(ipRange, "*") {
 		firstIP := strings.ReplaceAll(ipRange, "*", "0")
@@ -97,12 +66,28 @@ func Parse(ipRange string) (*IPRange, error) {
 
 		return &IPRange{FirstIP: first, LastIP: last}, nil
 	} else {
+		// Try to parse as a single IP address
 		ip := net.ParseIP(ipRange)
 		if ip != nil {
 			return &IPRange{FirstIP: ip, LastIP: ip}, nil
 		}
+
+		// Try to parse as a CIDR format
+		ip, ipNet, err := net.ParseCIDR(ipRange)
+		if err == nil {
+			firstIP := ip
+			lastIP := getLastIP(ipNet)
+			return &IPRange{FirstIP: firstIP, LastIP: lastIP}, nil
+		}
 	}
 	return nil, errors.New("Invalid IP range")
+}
+func getLastIP(ipNet *net.IPNet) net.IP {
+	ip := make(net.IP, len(ipNet.IP))
+	for i := 0; i < len(ip); i++ {
+		ip[i] = ipNet.IP[i] | ^ipNet.Mask[i]
+	}
+	return ip
 }
 
 // formatCompleteIP takes a given IP address and the last octet as an integer and returns a complete IP address
